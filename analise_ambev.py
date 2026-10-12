@@ -181,7 +181,7 @@ def build_dataset(df_tidy):
     df_q['FCO_EBIT'] = df_q['CFO'] / df_q['EBIT']
     df_q['CFO_LL'] = df_q['CFO'] / df_q['Lucro_Liquido']
 
-    cols_mi = ['Receita', 'EBITDA', 'EBIT', 'Lucro_Liquido', 'Lucro_Bruto', 'CFO', 'CAPEX', 'FCF', 'Caixa_Total', 'Divida_Bruta', 'Caixa_Liquido', 'PL']
+    cols_mi = ['Receita', 'EBITDA', 'EBIT', 'Lucro_Liquido', 'Lucro_Bruto', 'CFO', 'CAPEX', 'FCF', 'Caixa_Total', 'Divida_Bruta', 'Caixa_Liquido', 'PL', 'Ativo_Circulante', 'Passivo_Circulante', 'Estoques']
     for c in cols_mi:
         df_q[c] = df_q[c] / 1e6
 
@@ -193,19 +193,24 @@ def build_annual_dataset(df_q):
     df_temp = df_q.copy()
     df_temp['Ano'] = df_temp['data_fim_exercicio'].str[:4].astype(str)
     
+    # 1. Agrupamento dos Fluxos do DRE e DFC
     annual_flow = df_temp.groupby('Ano')[['Receita', 'EBITDA', 'EBIT', 'Lucro_Liquido', 'Lucro_Bruto', 'CFO', 'CAPEX', 'FCF']].sum().reset_index()
     
-    annual_bp = df_temp[df_temp['data_fim_exercicio'].str.endswith('-12-31')][['data_fim_exercicio', 'Caixa_Total', 'Divida_Bruta', 'Caixa_Liquido', 'Ativo_Circulante', 'Passivo_Circulante', 'Estoques', 'PL']].copy()
-    annual_bp['Ano'] = annual_bp['data_fim_exercicio'].str[:4].astype(str)
+    # 2. Posição Fechada de Balanço em 31/12
+    annual_bp = df_temp[df_temp['data_fim_exercicio'].str.endswith('-12-31')][
+        ['Ano', 'Caixa_Total', 'Divida_Bruta', 'Caixa_Liquido', 'Ativo_Circulante', 'Passivo_Circulante', 'Estoques', 'PL']
+    ].copy()
     
     df_annual = annual_flow.merge(annual_bp, on='Ano')
     
+    # 3. Recálculos Anuais
     df_annual['Margem_Bruta'] = (df_annual['Lucro_Bruto'] / df_annual['Receita']) * 100
     df_annual['Margem_EBITDA'] = (df_annual['EBITDA'] / df_annual['Receita']) * 100
     df_annual['Margem_EBIT'] = (df_annual['EBIT'] / df_annual['Receita']) * 100
     df_annual['Margem_Liquida'] = (df_annual['Lucro_Liquido'] / df_annual['Receita']) * 100
     df_annual['FCO_EBIT'] = df_annual['CFO'] / df_annual['EBIT']
     
+    # LIQUIDEZ NO MODO ANUAL
     df_annual['Liquidez_Corrente'] = df_annual['Ativo_Circulante'] / df_annual['Passivo_Circulante']
     df_annual['Liquidez_Seca'] = (df_annual['Ativo_Circulante'] - df_annual['Estoques']) / df_annual['Passivo_Circulante']
     df_annual['Liquidez_Imediata'] = df_annual['Caixa_Total'] / df_annual['Passivo_Circulante']
@@ -243,7 +248,6 @@ tipo_visao = st.sidebar.radio(
     index=0
 )
 
-# Seleção Dinâmica do Dataset
 if tipo_visao == "Anual Acumulado (DFP)":
     df_active = df_a.copy()
     opcoes_destaque = lista_anos
@@ -254,7 +258,7 @@ else:
 data_destaque = st.sidebar.selectbox(
     "📌 Período em Destaque nos Cards (KPIs):",
     options=opcoes_destaque,
-    index=len(opcoes_destaque) - 1 # Seleciona o mais recente por padrão
+    index=len(opcoes_destaque) - 1
 )
 
 datas_selecionadas = st.sidebar.multiselect(
@@ -330,7 +334,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ------------------------------------------
-# TAB 1: VISÃO GERAL (TÍTULO ANUAL ENFATIZADO)
+# TAB 1: VISÃO GERAL
 # ------------------------------------------
 with tab1:
     rotulo_periodo = "Ano (DFP)" if tipo_visao == "Anual Acumulado (DFP)" else "Trimestre (ITR)"
@@ -379,7 +383,7 @@ with tab2:
     with col_l1:
         st.markdown(f"#### Índices de Liquidez ({tipo_visao})")
         fig_liq = go.Figure()
-        fig_liq.add_trace(go.Scatter(x=df_filtered['data_fim_exercicio'], y=df_filtered['Liquidez_Corrente'], name='Corrente', line=dict(color=COLOR_NAVY, width=2)))
+        fig_liq.add_trace(go.Scatter(x=df_filtered['data_fim_exercicio'], y=df_filtered['Liquidez_Corrente'], name='Corrente', line=dict(color=COLOR_NAVY, width=2.5)))
         fig_liq.add_trace(go.Scatter(x=df_filtered['data_fim_exercicio'], y=df_filtered['Liquidez_Seca'], name='Seca', line=dict(color=COLOR_GOLD, width=2, dash='dash')))
         fig_liq.add_trace(go.Scatter(x=df_filtered['data_fim_exercicio'], y=df_filtered['Liquidez_Imediata'], name='Imediata', line=dict(color="#64748B", width=2, dash='dot')))
         fig_liq.update_layout(xaxis=dict(type='category'), height=380, plot_bgcolor="white")
@@ -387,14 +391,41 @@ with tab2:
     with col_l2:
         st.markdown(f"#### Posição Financeira: Disponibilidades vs. Dívida Bruta ({tipo_visao})")
         fig_pos = go.Figure()
-        fig_pos.add_trace(go.Bar(x=df_filtered['data_fim_exercicio'], y=df_filtered['Caixa_Total'], name='Caixa & Aplicações', marker_color=COLOR_GREEN))
-        fig_pos.add_trace(go.Bar(x=df_filtered['data_fim_exercicio'], y=-df_filtered['Divida_Bruta'], name='Dívida Bruta', marker_color=COLOR_RED))
-        fig_pos.add_trace(go.Scatter(x=df_filtered['data_fim_exercicio'], y=df_filtered['Caixa_Liquido'], name='Caixa Líquido', line=dict(color=COLOR_NAVY, width=3)))
-        fig_pos.update_layout(xaxis=dict(type='category'), barmode='relative', height=380, plot_bgcolor="white")
+        fig_pos.add_trace(go.Bar(
+            x=df_filtered['data_fim_exercicio'], 
+            y=df_filtered['Caixa_Total'], 
+            name='Caixa & Aplicações', 
+            marker_color=COLOR_GREEN
+        ))
+        fig_pos.add_trace(go.Bar(
+            x=df_filtered['data_fim_exercicio'], 
+            y=-df_filtered['Divida_Bruta'], 
+            name='Dívida Bruta', 
+            marker_color=COLOR_RED
+        ))
+        fig_pos.add_trace(go.Scatter(
+            x=df_filtered['data_fim_exercicio'], 
+            y=df_filtered['Caixa_Liquido'], 
+            name='Caixa Líquido', 
+            line=dict(color=COLOR_NAVY, width=3)
+        ))
+        
+        # FORMATO DO EIXO Y EM MILHÕES (EX: 10.000 M, 20.000 M)
+        fig_pos.update_layout(
+            xaxis=dict(type='category'),
+            yaxis=dict(
+                tickformat=",.0f",
+                ticksuffix=" M",
+                title="R$ (Milhões)"
+            ),
+            barmode='relative', 
+            height=380, 
+            plot_bgcolor="white"
+        )
         st.plotly_chart(fig_pos, use_container_width=True)
 
 # ------------------------------------------
-# TAB 3: RENTABILIDADE & CAIXA (FATOR DE CONVERSÃO CORRIGIDO)
+# TAB 3: RENTABILIDADE & CAIXA
 # ------------------------------------------
 with tab3:
     st.markdown("### Margens Operacionais e Conversão de Caixa")
@@ -412,7 +443,6 @@ with tab3:
     with col_m2:
         st.markdown(f"#### Fator de Conversão de Caixa (FCO / EBIT) — ({tipo_visao})")
         
-        # FORÇA O EIXO X A EXIBIR TODOS OS ANOS/PERÍODOS DE FORMA CATEGÓRICA
         eixo_x_fco = list(df_filtered['data_fim_exercicio'].astype(str))
         eixo_y_fco = list(df_filtered['FCO_EBIT'])
         
@@ -424,7 +454,6 @@ with tab3:
             marker_color=COLOR_NAVY
         ))
         
-        # LINHA DE REFERÊNCIA META (1.0x)
         fig_fco.add_shape(
             type="line", 
             x0=-0.5, 
