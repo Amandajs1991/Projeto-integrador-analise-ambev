@@ -369,6 +369,11 @@ with tab1:
     ))
     fig_resultado.update_layout(
         xaxis=dict(type='category'),
+        yaxis=dict(
+            tickformat=",.0f",
+            ticksuffix=" M",
+            title="R$ (Milhões)"
+        ),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0), 
         height=450, plot_bgcolor="white"
     )
@@ -410,7 +415,6 @@ with tab2:
             line=dict(color=COLOR_NAVY, width=3)
         ))
         
-        # FORMATO DO EIXO Y EM MILHÕES (EX: 10.000 M, 20.000 M)
         fig_pos.update_layout(
             xaxis=dict(type='category'),
             yaxis=dict(
@@ -579,8 +583,14 @@ with tab5:
         marker=dict(size=8, color=COLOR_PURPLE)
     ))
     
+    # AJUSTE NO EIXO Y PARA EXIBIR R$ MILHÕES TAMBÉM NO GRÁFICO DE REGRESSÃO
     fig_reg.update_layout(
         xaxis=dict(type='category'),
+        yaxis=dict(
+            tickformat=",.0f",
+            ticksuffix=" M",
+            title="R$ (Milhões)"
+        ),
         height=400, plot_bgcolor="white", 
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0)
     )
